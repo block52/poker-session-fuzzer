@@ -51,10 +51,10 @@ func Sweep(t *testing.T, engine Engine, opts Options) {
 		if r.Violation == nil {
 			continue
 		}
-		kind := r.Violation.Invariant + ": " + digits.ReplaceAllString(r.Violation.Detail, "N")
+		kind := r.Violation.Kind()
 		seen[kind]++
 		if seen[kind] == 1 {
-			t.Errorf("seed %d (replay with SESSIONFUZZ_SEED=%d): %s", seed, seed, r.Report())
+			t.Errorf("seed %d (replay with SESSIONFUZZ_SEED=%d): %s%s", seed, seed, r.Report(), minimizedScene(engine, r, opts, nil))
 		}
 	}
 	for kind, n := range seen {
@@ -108,14 +108,36 @@ func Replay(t *testing.T, engine Engine, opts Options) {
 		t.Logf("%3d  %s", i+1, line)
 	}
 	t.Log("\n" + DescribeState(r.Final))
-	var b strings.Builder
-	b.WriteString("as a github.com/block52/poker-scene-dsl scenario:\n\n\tsc.Act(\n")
-	for _, line := range r.Scene() {
-		fmt.Fprintf(&b, "\t\t%q,\n", line)
+	t.Log("\nthe whole session as a github.com/block52/poker-scene-dsl scenario:\n\n" + sceneCode(r.Scene()))
+	if r.Violation != nil {
+		t.Log(minimizedScene(engine, r, opts, nil))
 	}
-	b.WriteString("\t)\n")
-	t.Log("\n" + b.String())
+	for id, v := range r.KnownFirst {
+		t.Logf("known issue %s%s", id, minimizedScene(engine, r, opts, v))
+	}
 	if r.Violation != nil {
 		t.Fatalf("invariant %q violated: %s", r.Violation.Invariant, r.Violation.Detail)
 	}
+}
+
+// sceneCode formats DSL sentences as an sc.Act(...) call.
+func sceneCode(lines []string) string {
+	var b strings.Builder
+	b.WriteString("\tsc.Act(\n")
+	for _, line := range lines {
+		fmt.Fprintf(&b, "\t\t%q,\n", line)
+	}
+	b.WriteString("\t)\n")
+	return b.String()
+}
+
+// minimizedScene minimises the session for target (nil: its violation) and
+// renders the result as a scenario, or says why it could not.
+func minimizedScene(engine Engine, r *Result, opts Options, target *Violation) string {
+	m, err := Minimize(engine, r, opts, target)
+	if err != nil {
+		return "\n(could not minimise: " + err.Error() + ")"
+	}
+	return fmt.Sprintf("\n\nminimised to %d of %d actions (%s) — as a poker-scene-dsl scenario:\n\n%s",
+		len(m.Actions), len(r.Actions), m.Violation.Error(), sceneCode(m.Scene()))
 }

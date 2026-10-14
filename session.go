@@ -51,6 +51,8 @@ type Result struct {
 	Violation *Violation
 	// Known counts violations of each known issue.
 	Known map[string]int
+	// KnownFirst is the first violation of each known issue, for Minimize.
+	KnownFirst map[string]*Violation
 	// Actions are the accepted actions in order, with the actor's seat at
 	// the time (0 for a join or a timeout). [Result.Scene] renders them.
 	Actions []Recorded
@@ -92,7 +94,7 @@ func Run(engine Engine, data []byte, opts Options) (*Result, error) {
 	s := &session{
 		opts: &opts, cfg: cfg, table: table, state: table.State(), addrs: opts.addresses(),
 		clock: 1_700_000_000_000, chips: big.NewInt(0),
-		res: &Result{Config: cfg, Known: map[string]int{}},
+		res: &Result{Config: cfg, Known: map[string]int{}, KnownFirst: map[string]*Violation{}},
 	}
 	s.logf("table %s, %d seats, blinds %s/%s", cfg.Format, cfg.MaxPlayers, cfg.SmallBlind, cfg.BigBlind)
 	for s.step(in) {
@@ -119,6 +121,9 @@ func (s *session) known(v *Violation) bool {
 		return false
 	}
 	s.res.Known[id]++
+	if s.res.KnownFirst[id] == nil {
+		s.res.KnownFirst[id] = v
+	}
 	return true
 }
 
@@ -163,6 +168,12 @@ func (s *session) apply(a Action) (accepted bool) {
 		if r := recover(); r != nil {
 			s.logf("%s: %s %s  <- PANIC", who, a.Action, amountString(a.Amount))
 			s.panicked = &Violation{"no-panic", fmt.Sprintf("%s by %s: %v", a.Action, who, r)}
+			// Recorded so a replay (Minimize, Scene) reproduces the panic.
+			seat := 0
+			if before != nil {
+				seat = before.Seat
+			}
+			s.res.Actions = append(s.res.Actions, Recorded{Action: a, Seat: seat})
 			accepted = false
 		}
 	}()

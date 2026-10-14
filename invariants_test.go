@@ -225,3 +225,69 @@ func TestScene(t *testing.T) {
 		t.Fatalf("Scene() = %q, want %q", got, want)
 	}
 }
+
+func TestMinimize(t *testing.T) {
+	// Joins succeed; the engine breaks only when player03 joins (it is
+	// reported busted while holding chips). Everything else in the session is
+	// noise the minimiser should drop.
+	newTable := func(Config) (Table, error) {
+		return &fakeTable{state: State{Round: Ante, Pot: chips(0)}, apply: func(f *fakeTable, a Action) error {
+			if err := joinOnly(f, a); err != nil {
+				return err
+			}
+			if a.Player == "player03" {
+				f.state.Players[len(f.state.Players)-1].Status = Busted
+			}
+			return nil
+		}}, nil
+	}
+	engine := EngineFunc(newTable)
+	for seed := uint64(1); seed <= 50; seed++ {
+		r, err := Run(engine, SeedBytes(seed, 800), Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Violation == nil {
+			continue
+		}
+		m, err := Minimize(engine, r, Options{}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(m.Actions) != 1 || m.Actions[0].Player != "player03" {
+			t.Fatalf("seed %d: minimised %d actions to %v, want just player03's join", seed, len(r.Actions), m.Scene())
+		}
+		if m.Violation.Kind() != r.Violation.Kind() {
+			t.Fatalf("minimised to a different violation: %v vs %v", m.Violation, r.Violation)
+		}
+		return
+	}
+	t.Fatal("no seed reached the violation")
+}
+
+func TestMinimizeKeepsPanics(t *testing.T) {
+	table := func(Config) (Table, error) {
+		return &fakeTable{state: State{Round: Ante, Pot: chips(0)}, apply: func(f *fakeTable, a Action) error {
+			if a.Action == ActJoin && a.Player == "player05" {
+				panic("boom")
+			}
+			return joinOnly(f, a)
+		}}, nil
+	}
+	engine := EngineFunc(table)
+	for seed := uint64(1); seed <= 50; seed++ {
+		r, _ := Run(engine, SeedBytes(seed, 800), Options{})
+		if r.Violation == nil {
+			continue
+		}
+		m, err := Minimize(engine, r, Options{}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := m.Scene(); len(got) != 1 || !strings.HasPrefix(got[0], "player05 joins") {
+			t.Fatalf("seed %d: want just the panicking join, got %v", seed, got)
+		}
+		return
+	}
+	t.Fatal("no seed reached the panic")
+}

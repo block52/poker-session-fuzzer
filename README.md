@@ -68,18 +68,30 @@ state:
 
 ## From failure to test
 
-`Result.Scene()` renders a session's accepted actions as a [poker-scene-dsl](https://github.com/block52/poker-scene-dsl) scenario, and `Replay` prints it. A fuzz failure becomes a readable test that replays the same session on the same timeline:
+Every failure is minimised and printed as a [poker-scene-dsl](https://github.com/block52/poker-scene-dsl) scenario, ready to paste into a test.
+
+`Minimize` replays subsets of the session on fresh tables, dropping actions while the same kind of violation still happens. On our engine, a 113-action stall comes down to 12 sentences:
 
 ```go
 sc.Act(
-	"player10 joins seat 8 with 983",
-	"seat 8 sits in",
-	"seat 8 posts small blind",
+	"player02 joins seat 2 with 1527",
+	"seat 2 sits in and waits",
+	"player06 joins seat 1 with 1527",
+	"seat 1 sits in",
+	"player05 joins seat 5 with 1682",
+	"seat 5 sits in",
 	"time runs out",
+	"seat 1 posts big blind",
 	"deal",
-	// …
+	"seat 2 calls",
+	"seat 1 folds",
+	"seat 2 leaves",
 )
 ```
+
+`Sweep` prints the minimised scenario for each new kind of failure. `Replay` prints the whole session, the minimised failure, and a minimised scenario for every known issue the session hit. The fuzzer and the DSL tick the same clock, so a scenario replays its session exactly.
+
+You can call it directly too: `sessionfuzz.Minimize(engine, result, opts, nil)` then `.Scene()`. Pass a known issue's violation from `result.KnownFirst` as the last argument to minimise that one.
 
 ## Options
 
