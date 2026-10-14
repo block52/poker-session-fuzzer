@@ -16,8 +16,9 @@ import (
 //   - liveness: during a hand, and before the deal once two or more players
 //     are active, the nextToAct seat holds a live player with a legal action
 //     that moves play on.
-//   - positions: in a dealt hand the big blind is a player in the hand, and
-//     the small and big blind are different seats.
+//   - positions: when a hand is dealt, the big blind is a player in the hand
+//     and the small and big blind are different seats; after that, the blind
+//     positions do not move until the hand ends.
 //   - stall-at-end: between hands, when enough players with chips want to
 //     play, someone is offered new-hand.
 //   - end-nextToAct: between hands, new-hand is offered to the nextToAct seat
@@ -89,18 +90,25 @@ func check(s *session) *Violation {
 		}
 	}
 
-	// Positions in a dealt hand.
+	// Positions in a dealt hand: checked when the hand is first seen dealt,
+	// then pinned. A blind poster may leave or sit out later in the hand, so
+	// the seat it held can empty; the positions themselves must not move.
 	if st.Round != End && st.Round != Ante && st.BigBlind != 0 {
-		bb := s.playerAtSeat(st.BigBlind)
-		if bb == nil || bb.Status == Seated || bb.Status == SittingOut || bb.Status == Busted {
-			status := "empty"
-			if bb != nil {
-				status = string(bb.Status)
+		if s.dealt == nil || s.dealt.hand != st.HandNumber {
+			bb := s.playerAtSeat(st.BigBlind)
+			if bb == nil || bb.Status == Seated || bb.Status == SittingOut || bb.Status == Busted {
+				status := "empty"
+				if bb != nil {
+					status = string(bb.Status)
+				}
+				return &Violation{"positions", fmt.Sprintf("big blind seat %d is %s in %s", st.BigBlind, status, st.Round)}
 			}
-			return &Violation{"positions", fmt.Sprintf("big blind seat %d is %s in %s", st.BigBlind, status, st.Round)}
-		}
-		if st.SmallBlind == st.BigBlind {
-			return &Violation{"positions", fmt.Sprintf("small and big blind are both seat %d in %s", st.BigBlind, st.Round)}
+			if st.SmallBlind == st.BigBlind {
+				return &Violation{"positions", fmt.Sprintf("small and big blind are both seat %d in %s", st.BigBlind, st.Round)}
+			}
+			s.dealt = &dealtHand{hand: st.HandNumber, small: st.SmallBlind, big: st.BigBlind}
+		} else if st.SmallBlind != s.dealt.small || st.BigBlind != s.dealt.big {
+			return &Violation{"positions", fmt.Sprintf("blinds moved mid-hand in %s: small %d→%d, big %d→%d", st.Round, s.dealt.small, st.SmallBlind, s.dealt.big, st.BigBlind)}
 		}
 	}
 

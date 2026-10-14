@@ -12,7 +12,7 @@ Hand-history corpora (PHH, site histories, solver output) test one hand at a tim
 | `status-stack` | A busted player has (almost) no chips. An all-in player has none while the hand is live. |
 | `chip-conservation` | Stacks + pot (+ queued top-ups) change only when a player joins, tops up or leaves. |
 | `liveness` | During a hand, and before the deal once two or more players are active, the seat on the clock can move play on. |
-| `positions` | In a dealt hand, the big blind is a player in the hand, and the small and big blind are different seats. |
+| `positions` | When a hand is dealt, the big blind is a player in the hand and the small and big blind are different seats. After that the blind positions do not move until the hand ends (a blind poster may still leave). |
 | `stall-at-end` | Between hands, when enough players with chips want to play, someone is offered `new-hand`. |
 | `end-nextToAct` | Between hands, `new-hand` is offered to the seat on the clock. |
 

@@ -76,6 +76,13 @@ type session struct {
 	res   *Result
 	// panicked holds a panic until the step that caused it returns.
 	panicked *Violation
+	// dealt is the hand's blind positions as first seen after the deal.
+	dealt *dealtHand
+}
+
+// dealtHand pins a hand's blind positions: once dealt they must not move.
+type dealtHand struct {
+	hand, small, big int
 }
 
 // Run plays one session from data and returns what happened. The first input

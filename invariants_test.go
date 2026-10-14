@@ -117,6 +117,40 @@ func TestCheck(t *testing.T) {
 	}
 }
 
+// Once a hand is dealt its blinds are pinned: a blind poster who leaves may
+// empty the seat, but the positions must not move.
+func TestPositionsArePinnedPerHand(t *testing.T) {
+	dealt := State{Round: Preflop, HandNumber: 4, NextToAct: 3, SmallBlind: 1, BigBlind: 2, Pot: chips(150),
+		Players: []Player{player(1, 950, Active), player(2, 900, Active), player(3, 1000, Active, ActCall)}}
+	s := sessionAt(dealt, 3000, Options{})
+	if v := check(s); v != nil {
+		t.Fatalf("dealt hand: %v", v)
+	}
+
+	// The big blind leaves; its blind stays in the pot.
+	s.state = State{Round: Preflop, HandNumber: 4, NextToAct: 3, SmallBlind: 1, BigBlind: 2, Pot: chips(150),
+		Players: []Player{player(1, 950, Active), player(3, 1000, Active, ActCall)}}
+	s.chips = chips(2100)
+	if v := check(s); v != nil {
+		t.Fatalf("big blind left mid-hand: %v", v)
+	}
+
+	// The blinds move onto other seats.
+	s.state.SmallBlind, s.state.BigBlind = 3, 1
+	v := check(s)
+	if v == nil || v.Invariant != "positions" || !strings.Contains(v.Detail, "small 1→3, big 2→1") {
+		t.Fatalf("want blinds-moved violation, got %v", v)
+	}
+
+	// A new hand re-checks from scratch.
+	s.state = State{Round: Preflop, HandNumber: 5, NextToAct: 1, SmallBlind: 3, BigBlind: 1, Pot: chips(150),
+		Players: []Player{player(1, 900, Active, ActCall), player(3, 950, Active)}}
+	s.chips = chips(2000)
+	if v := check(s); v != nil {
+		t.Fatalf("next hand: %v", v)
+	}
+}
+
 func TestBustBelowRule(t *testing.T) {
 	st := State{Round: End, Pot: chips(0), NextToAct: 2, Players: []Player{player(1, 40, Busted), player(2, 960, Active, ActNewHand)}}
 	opts := Options{Rules: Rules{BustBelow: func(Config) *big.Int { return chips(50) }}}
