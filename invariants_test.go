@@ -210,3 +210,18 @@ func TestDeckIsAShuffledPack(t *testing.T) {
 		t.Fatal("Deck is not deterministic")
 	}
 }
+
+func TestScene(t *testing.T) {
+	r := &Result{Actions: []Recorded{
+		{Action: Action{Player: "player03", Action: ActJoin, Seat: 2, Amount: chips(1000)}},
+		{Action: Action{Player: "player03", Action: ActSitIn}, Seat: 2},
+		{Action: Action{Player: "player03", Action: ActRaise, Amount: chips(250)}, Seat: 2},
+		{Action: Action{Action: ActTimeout}},
+		{Action: Action{Player: "player03", Action: ActNewHand, Deck: []string{"AS", "KD"}}, Seat: 2},
+	}}
+	want := []string{"player03 joins seat 2 with 1000", "seat 2 sits in", "seat 2 raises by 250", "time runs out", "new hand with deck AS-KD"}
+	got := r.Scene()
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("Scene() = %q, want %q", got, want)
+	}
+}

@@ -145,8 +145,8 @@ type Action struct {
 	// Deck is the next hand's deck, top first (new-hand only). An engine that
 	// shuffles itself may ignore it, at the cost of determinism.
 	Deck []string
-	// Time is the action's timestamp in Unix milliseconds. The fuzzer advances
-	// it a second per action, and ten minutes before a timeout.
+	// Time is the action's timestamp in Unix milliseconds: a second after the
+	// last accepted action, or ten minutes and a second for a timeout.
 	Time int64
 }
 

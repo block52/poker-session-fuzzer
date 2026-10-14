@@ -51,6 +51,15 @@ type Result struct {
 	Violation *Violation
 	// Known counts violations of each known issue.
 	Known map[string]int
+	// Actions are the accepted actions in order, with the actor's seat at
+	// the time (0 for a join or a timeout). [Result.Scene] renders them.
+	Actions []Recorded
+}
+
+// Recorded is one accepted action.
+type Recorded struct {
+	Action
+	Seat int
 }
 
 type session struct {
@@ -135,8 +144,13 @@ func (s *session) apply(a Action) (accepted bool) {
 	if s.opts.Rules.Reject != nil && s.opts.Rules.Reject(s.cfg, s.state, a) {
 		return false
 	}
-	s.clock += 1000
-	a.Time = s.clock
+	// The clock moves only when an action is accepted — a second per action,
+	// plus ten minutes before a timeout — so a replay of the accepted actions
+	// (Result.Scene) runs on exactly the same timeline.
+	a.Time = s.clock + 1000
+	if a.Action == ActTimeout {
+		a.Time += 10 * 60 * 1000
+	}
 	before := s.playerByAddr(a.Player)
 	who := a.Player
 	if before != nil {
@@ -155,6 +169,7 @@ func (s *session) apply(a Action) (accepted bool) {
 	if err := s.table.Apply(a); err != nil {
 		return false
 	}
+	s.clock = a.Time
 	next := s.table.State()
 
 	// Chips enter only with a joining player or a top-up, and leave only with
@@ -187,6 +202,11 @@ func (s *session) apply(a Action) (accepted bool) {
 		line += "   (not in legal actions)"
 	}
 	s.logf("%s", line)
+	seat := 0
+	if before != nil {
+		seat = before.Seat
+	}
+	s.res.Actions = append(s.res.Actions, Recorded{Action: a, Seat: seat})
 	s.state = next
 	return true
 }
@@ -251,7 +271,6 @@ func (s *session) step(in *input) bool {
 		return s.join(in)
 	case op < 15:
 		// Let the turn clock run out, then time the seat out.
-		s.clock += 10 * 60 * 1000
 		s.apply(Action{Action: ActTimeout})
 		return true
 	default:

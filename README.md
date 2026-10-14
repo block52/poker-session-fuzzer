@@ -66,6 +66,21 @@ state:
   seat 5: sitting-in             stack=1682   legal=[sit-out top-up leave]
 ```
 
+## From failure to test
+
+`Result.Scene()` renders a session's accepted actions as a [poker-scene-dsl](https://github.com/block52/poker-scene-dsl) scenario, and `Replay` prints it. A fuzz failure becomes a readable test that replays the same session on the same timeline:
+
+```go
+sc.Act(
+	"player10 joins seat 8 with 983",
+	"seat 8 sits in",
+	"seat 8 posts small blind",
+	"time runs out",
+	"deal",
+	// …
+)
+```
+
 ## Options
 
 - **`Rules`** hold where engines legitimately differ:

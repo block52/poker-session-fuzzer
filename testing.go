@@ -1,10 +1,12 @@
 package sessionfuzz
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -83,8 +85,9 @@ func Fuzz(f *testing.F, engine Engine, opts Options) {
 	})
 }
 
-// Replay prints one [Sweep] session in full when SESSIONFUZZ_SEED is set, and
-// skips otherwise:
+// Replay prints one [Sweep] session in full when SESSIONFUZZ_SEED is set —
+// the script, the final table, and the session as a poker-scene-dsl scenario —
+// and skips otherwise:
 //
 //	SESSIONFUZZ_SEED=5 go test -run TestReplay -v
 func Replay(t *testing.T, engine Engine, opts Options) {
@@ -105,6 +108,13 @@ func Replay(t *testing.T, engine Engine, opts Options) {
 		t.Logf("%3d  %s", i+1, line)
 	}
 	t.Log("\n" + DescribeState(r.Final))
+	var b strings.Builder
+	b.WriteString("as a github.com/block52/poker-scene-dsl scenario:\n\n\tsc.Act(\n")
+	for _, line := range r.Scene() {
+		fmt.Fprintf(&b, "\t\t%q,\n", line)
+	}
+	b.WriteString("\t)\n")
+	t.Log("\n" + b.String())
 	if r.Violation != nil {
 		t.Fatalf("invariant %q violated: %s", r.Violation.Invariant, r.Violation.Detail)
 	}
